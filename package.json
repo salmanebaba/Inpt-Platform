@@ -1,0 +1,40 @@
+{
+  "name": "smartresto",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "lint": "eslint backend/src backend/prisma backend/test frontend/src tests/browser playwright.config.ts",
+    "test": "npm run test -w backend && npm run test -w frontend",
+    "dev:api": "npm run dev -w backend",
+    "dev:web": "npm run dev -w frontend",
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:seed": "npm run db:seed -w backend",
+    "format": "prettier --write .",
+    "test:browser": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "^1.56.0",
+    "eslint": "^9.39.0",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0"
+  },
+  "overrides": {
+    "multer": "^2.5.0",
+    "deepmerge-ts": "^8.0.0",
+    "@nestjs/swagger": {
+      "js-yaml": "^5.5.0"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+package-lock.json
+SMARTRESTO_PROJECT_SPEC.md
+.env
+.local
+playwright-report
+test-results

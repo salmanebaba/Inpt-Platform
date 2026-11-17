@@ -1,0 +1,63 @@
+name: smartresto
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: smartresto
+      POSTGRES_PASSWORD: smartresto-demo-only
+      POSTGRES_DB: smartresto
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - demo_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U smartresto -d smartresto']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://smartresto:smartresto-demo-only@db:5432/smartresto?schema=public
+      JWT_SECRET: ${JWT_SECRET:-}
+      COUPON_HASH_KEY: ${COUPON_HASH_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      PORT: 3000
+      MEAL_PRICE_CENTS: ${MEAL_PRICE_CENTS:-140}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-true}
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - demo_secrets:/run/demo-secrets
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      start_period: 30s
+      timeout: 3s
+      retries: 10
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api/v1}
+    ports:
+      - '127.0.0.1:5173:8080'
+    depends_on:
+      backend:
+        condition: service_healthy
+volumes:
+  demo_db:
+  demo_secrets:

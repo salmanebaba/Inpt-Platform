@@ -1,0 +1,60 @@
+import { test, expect, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+async function login(page: Page, role: 'Admin' | 'Vendeur' | 'Étudiant') {
+  await page.goto('/login');
+  await page.getByRole('button', { name: role, exact: true }).click();
+  await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Se déconnecter' })).toBeVisible();
+}
+test('admin issuance → seller activation → student recharge → simulated meal', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await login(page, 'Admin');
+  await page.getByRole('link', { name: 'Gestion des coupons' }).click();
+  await page.getByLabel('Nom du lot').fill(`Browser demo ${Date.now()}`);
+  await page.getByLabel('Quantité (1 à 100)').fill('1');
+  await page.getByLabel('Attribuer au vendeur').selectOption({ label: 'Buvette du campus' });
+  await page.getByRole('button', { name: 'Générer les coupons' }).click();
+  const printable = page.locator('.export-panel tbody tr').first();
+  await expect(printable).toBeVisible();
+  const serial = (await printable.locator('td').nth(0).innerText()).trim();
+  const secret = (await printable.locator('td').nth(1).innerText()).trim();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exporter le CSV' }).click();
+  const download = await downloadPromise;
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv.includes(serial) && csv.includes(secret) && csv.includes('5000')).toBe(true);
+  await page.getByRole('button', { name: 'J’ai conservé le CSV : masquer les codes' }).click();
+  await expect(page.locator('.secret-code')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await login(page, 'Vendeur');
+  await page.getByRole('textbox', { name: 'Rechercher un numéro public' }).fill(serial);
+  await page.getByRole('button', { name: 'Activer', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: 'Enregistrer et activer' })).toBeDisabled();
+  await dialog.getByRole('checkbox').check();
+  await dialog.getByRole('button', { name: 'Enregistrer et activer' }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator('tbody .badge.active').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await login(page, 'Étudiant');
+  await expect(page.locator('.balance-amount')).toBeVisible();
+  await page.screenshot({ path: '.local/screenshots/dashboard-desktop.png', fullPage: true });
+  await page.getByRole('link', { name: 'Recharger mon solde', exact: true }).click();
+  await page.getByLabel('Code du coupon').fill(secret);
+  await page.getByRole('button', { name: 'Confirmer la recharge' }).click();
+  await expect(page.locator('.success-box')).toContainText('+50,00 DH crédités');
+  await page.getByRole('link', { name: 'Mes transactions', exact: true }).click();
+  await expect(page.getByRole('table')).toContainText(serial);
+  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await login(page, 'Admin');
+  await page.getByRole('link', { name: 'Simuler un repas', exact: true }).click();
+  await page
+    .getByLabel('Étudiant', { exact: true })
+    .selectOption({ label: 'Amine Bennani · ETU-2026-0042' });
+  await page.getByRole('button', { name: 'Simuler le débit du repas' }).click();
+  await expect(page.locator('.success-box')).toContainText('Repas enregistré');
+  await page.getByRole('link', { name: 'Ventes & registre' }).click();
+  await expect(page.getByRole('table').first()).toContainText(serial);
+  expect(errors).toEqual([]);
+});

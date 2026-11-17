@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  STUDENT
+  SELLER
+  ADMIN
+}
+enum CouponStatus {
+  CREATED
+  ACTIVE
+  REDEEMED
+  VOID
+}
+enum TransactionType {
+  COUPON_RECHARGE
+  MEAL_DEBIT
+  ADMIN_ADJUSTMENT
+}
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+}
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  passwordHash String
+  fullName String
+  studentNumber String? @unique
+  role Role
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  wallet Wallet?
+  batches CouponBatch[]
+  assignedCoupons Coupon[] @relation("AssignedSeller")
+  activatedCoupons Coupon[] @relation("ActivatedBy")
+  redeemedCoupons Coupon[] @relation("RedeemedBy")
+  sales CouponSale[]
+  meals Meal[]
+}
+model Wallet {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @unique @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  balanceCents Int @default(0)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  transactions WalletTransaction[]
+}
+model CouponBatch {
+  id String @id @default(uuid()) @db.Uuid
+  label String
+  amountCents Int
+  quantity Int
+  createdById String @db.Uuid
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  coupons Coupon[]
+}
+model Coupon {
+  id String @id @default(uuid()) @db.Uuid
+  publicSerial String @unique
+  batchId String @db.Uuid
+  batch CouponBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  codeHash String @unique
+  status CouponStatus @default(CREATED)
+  assignedSellerId String? @db.Uuid
+  assignedSeller User? @relation("AssignedSeller", fields: [assignedSellerId], references: [id], onDelete: Restrict)
+  activatedById String? @db.Uuid
+  activatedBy User? @relation("ActivatedBy", fields: [activatedById], references: [id], onDelete: Restrict)
+  activatedAt DateTime? @db.Timestamptz(3)
+  redeemedById String? @db.Uuid
+  redeemedBy User? @relation("RedeemedBy", fields: [redeemedById], references: [id], onDelete: Restrict)
+  redeemedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  sale CouponSale?
+  transaction WalletTransaction?
+  @@index([status, assignedSellerId])
+}
+model CouponSale {
+  id String @id @default(uuid()) @db.Uuid
+  couponId String @unique @db.Uuid
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  sellerId String @db.Uuid
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  saleReference String?
+  amountCents Int
+  soldAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([sellerId, soldAt])
+}
+model WalletTransaction {
+  id String @id @default(uuid()) @db.Uuid
+  walletId String @db.Uuid
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  type TransactionType
+  amountCents Int
+  balanceAfterCents Int
+  couponId String? @unique @db.Uuid
+  coupon Coupon? @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  mealId String? @unique @db.Uuid
+  meal Meal? @relation(fields: [mealId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  metadata Json?
+  @@index([walletId, createdAt])
+}
+model Meal {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  type MealType
+  priceCents Int
+  consumedAt DateTime @default(now()) @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  transaction WalletTransaction?
+  @@index([userId, consumedAt])
+}
